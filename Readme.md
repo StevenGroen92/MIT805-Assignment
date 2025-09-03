@@ -26,5 +26,17 @@ The focus domain is **Transport**, using the **NYC Taxi & Limousine Commission (
 ---
 
 ## 📂 Repository Structure
-
+mit805_transport/
+├── README.md <- Project overview (this file)
+├── requirements.txt <- Python dependencies
+├── notebooks/
+│ └── part1_explore.ipynb <- Data exploration (Part 1)
+├── spark_jobs/
+│ └── monthly_aggregates.py <- Spark/MapReduce jobs (Part 2)
+├── data_samples/
+│ └── yellow_sample_1k.parquet <- Tiny demo dataset
+├── outputs/
+│ ├── trips_per_month.csv <- Aggregated KPIs
+│ └── charts/
+│ └── trips_trend.png <- Visualisations
 
