@@ -31,7 +31,7 @@ Instead, the repository includes:
 ---
 
 ## 📂 Repository Structure
-mit805_transport/
+MIT805-Assignment/
 ├── README.md <- Project overview (this file)
 ├── requirements.txt <- Python dependencies
 ├── notebooks/
