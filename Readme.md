@@ -20,7 +20,13 @@ The focus domain is **Transport**, using the **NYC Taxi & Limousine Commission (
 - Combined Parquet files (2019 – 2025/07): **~26 GB** on disk.  
 - Rows: Billions across all three services.  
 
-⚠️ **Note:** Raw data is not uploaded to this repository due to GitHub size limits (>30 GB). Only small samples and outputs are included. See links above to access the official dataset.
+⚠️ **Note on GitHub Storage:**  
+The full dataset (~26 GB) is **not uploaded** to this repository due to GitHub’s file size limits (100 MB per file, ~1 GB recommended repo size).  
+Instead, the repository includes:  
+- **Small sample files** in `data_samples/` for quick testing (<10 MB).  
+- **Scripts and notebooks** to load and process the data.  
+- **Links to official sources** (see above) so the full dataset can be re-downloaded if needed.  
+- **Aggregated outputs and visualisations** generated for the assignment.  
 
 ---
 
