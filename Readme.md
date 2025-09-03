@@ -10,7 +10,6 @@ The focus domain is **Transport**, using the **NYC Taxi & Limousine Commission (
 **Source:**  
 - NYC TLC Trip Record Data (2019 – July 2025)  
   - [NYC TLC Open Data Portal](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)  
-  - [AWS Open Data Registry](https://registry.opendata.aws/nyc-tlc-trip-records-pds/)
 
 **Files downloaded:**  
 - Yellow Taxi Trip Records (`yellow_tripdata_YYYY-MM.parquet`)  
