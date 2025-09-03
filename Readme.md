@@ -31,7 +31,6 @@ Instead, the repository includes:
 ---
 
 ## 📂 Repository Structure
-
 mit805_transport/
 ├── README.md <- Project overview (this file)
 ├── requirements.txt <- Python dependencies
@@ -45,4 +44,3 @@ mit805_transport/
 │ ├── trips_per_month.csv <- Aggregated KPIs
 │ └── charts/
 │ └── trips_trend.png <- Visualisations
-
