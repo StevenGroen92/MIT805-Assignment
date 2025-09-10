@@ -1,0 +1,170 @@
+# profile_tlc.py
+# Summarize TLC parquet files:
+# - per file ("sheet"): rows (filtered date window) and column count
+# - per service: TOTAL row = sum(rows) + distinct columns across its files
+
+from __future__ import annotations
+
+import argparse
+from pathlib import Path
+from datetime import datetime
+from typing import List, Dict, Tuple
+
+import pandas as pd
+from pyspark.sql import SparkSession, functions as F
+
+# date window
+LOWER_BOUND = "2021-01-01"
+UPPER_BOUND = "2025-07-31 23:59:59"
+
+def tprint(msg: str) -> None:
+    stamp = datetime.now().strftime("%H:%M:%S")
+    print(f"[{stamp}] {msg}", flush=True)
+
+def find_files(root: Path, pattern: str) -> List[str]:
+    return sorted(str(p) for p in root.rglob(pattern))
+
+def count_rows_in_window(
+    df,
+    ts_col: str,
+    lower: str = LOWER_BOUND,
+    upper: str = UPPER_BOUND,
+) -> int:
+    # count rows with pickup timestamp within window
+    if ts_col not in df.columns:
+        return 0
+    return (
+        df.where(
+            (F.col(ts_col).cast("timestamp") >= F.to_timestamp(F.lit(lower))) &
+            (F.col(ts_col).cast("timestamp") <= F.to_timestamp(F.lit(upper)))
+        )
+        .select(ts_col)
+        .count()
+    )
+
+def process_service(
+    spark: SparkSession,
+    service: str,
+    files: List[str],
+    ts_col: str,
+) -> Tuple[List[Dict], int, int]:
+    """
+    Returns:
+      - rows list (dicts per file)
+      - total_rows (sum across files, in-window)
+      - distinct_column_count (across all files)
+    """
+    if not files:
+        raise RuntimeError(f"No files for service={service}")
+
+    rows: List[Dict] = []
+    total_rows = 0
+    all_cols = set()
+
+    for i, fp in enumerate(files, 1):
+        if i == 1 or i % 10 == 0 or i == len(files):
+            tprint(f"{service}: {i}/{len(files)}")
+
+        df = spark.read.parquet(fp)
+        ncols = len(df.columns)
+        all_cols.update(df.columns)
+
+        # count respecting date window
+        nrows = count_rows_in_window(df, ts_col)
+
+        total_rows += nrows
+        rows.append({
+            "service": service,
+            "file_name": Path(fp).name,
+            "relative_path": str(Path(fp)),
+            "rows_in_window": nrows,
+            "columns_in_file": ncols,
+        })
+
+    return rows, total_rows, len(all_cols)
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--root",
+        type=str,
+        default=".",
+        help="Folder containing yellow/, green/, fhvhv/ subfolders",
+    )
+    parser.add_argument(
+        "--out",
+        type=str,
+        default="outputs",
+        help="Output folder (CSV goes here)",
+    )
+    args = parser.parse_args()
+
+    data_root = Path(args.root).resolve()
+    out_dir = Path(args.out).resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    spark = (
+        SparkSession.builder.appName("tlc_profile_per_service")
+        .config("spark.sql.shuffle.partitions", "200")
+        .getOrCreate()
+    )
+    spark.sparkContext.setLogLevel("WARN")
+
+    # discover files for 2021-2025
+    yellow_files = find_files(data_root, "yellow_tripdata_202[1-5]-*.parquet")
+    green_files  = find_files(data_root, "green_tripdata_202[1-5]-*.parquet")
+    fhvhv_files  = find_files(data_root, "fhvhv_tripdata_202[1-5]-*.parquet")
+
+    print(
+        f"files -> yellow:{len(yellow_files)} green:{len(green_files)} fhvhv:{len(fhvhv_files)}",
+        flush=True,
+    )
+
+    # process each service separately (no big union)
+    all_rows: List[Dict] = []
+
+    y_rows, y_total, y_dist_cols = process_service(
+        spark, "yellow", yellow_files, "tpep_pickup_datetime"
+    )
+    all_rows.extend(y_rows)
+    all_rows.append({
+        "service": "yellow",
+        "file_name": "TOTAL",
+        "relative_path": "",
+        "rows_in_window": y_total,
+        "columns_in_file": y_dist_cols,  # distinct columns across yellow files
+    })
+
+    g_rows, g_total, g_dist_cols = process_service(
+        spark, "green", green_files, "lpep_pickup_datetime"
+    )
+    all_rows.extend(g_rows)
+    all_rows.append({
+        "service": "green",
+        "file_name": "TOTAL",
+        "relative_path": "",
+        "rows_in_window": g_total,
+        "columns_in_file": g_dist_cols,
+    })
+
+    f_rows, f_total, f_dist_cols = process_service(
+        spark, "fhvhv", fhvhv_files, "pickup_datetime"
+    )
+    all_rows.extend(f_rows)
+    all_rows.append({
+        "service": "fhvhv",
+        "file_name": "TOTAL",
+        "relative_path": "",
+        "rows_in_window": f_total,
+        "columns_in_file": f_dist_cols,
+    })
+
+    # write single CSV
+    profile_csv = out_dir / "profile_per_service.csv"
+    pd.DataFrame(all_rows).to_csv(profile_csv, index=False)
+    tprint(f"Wrote: {profile_csv}")
+
+    spark.stop()
+
+if __name__ == "__main__":
+    main()
