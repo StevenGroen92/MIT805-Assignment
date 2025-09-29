@@ -1,0 +1,52 @@
+# file_count_size.py
+# Count parquet files and total size (MB) per TLC service
+
+from pathlib import Path
+import argparse
+import pandas as pd
+
+def scan_service(service: str, root: Path) -> dict:
+    files = list(root.rglob(f"{service}_tripdata_*.parquet"))
+    count = len(files)
+    size_bytes = sum(f.stat().st_size for f in files)
+    size_mb = round(size_bytes / (1024 * 1024), 2)
+    return {
+        "service": service,
+        "file_count": count,
+        "total_size_mb": size_mb,
+    }
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--root",
+        type=str,
+        default=".",
+        help="Folder containing yellow/, green/, fhvhv/ subfolders",
+    )
+    parser.add_argument(
+        "--out",
+        type=str,
+        default="outputs",
+        help="Output folder for CSV",
+    )
+    args = parser.parse_args()
+
+    data_root = Path(args.root).resolve()
+    out_dir = Path(args.out).resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    results = []
+    for service in ["yellow", "green", "fhvhv"]:
+        stats = scan_service(service, data_root)
+        results.append(stats)
+        print(f"{service}: {stats['file_count']} files, {stats['total_size_mb']} MB")
+
+    # save summary CSV
+    df = pd.DataFrame(results)
+    out_csv = out_dir / "file_count_size.csv"
+    df.to_csv(out_csv, index=False)
+    print(f"\nWrote summary → {out_csv}")
+
+if __name__ == "__main__":
+    main()

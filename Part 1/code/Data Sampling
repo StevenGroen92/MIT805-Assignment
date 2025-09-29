@@ -1,0 +1,29 @@
+import pandas as pd
+from pathlib import Path
+
+BASE_DIR = Path(".")
+OUTPUT_DIR = BASE_DIR / "data_samples"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+files = {
+    "yellow": BASE_DIR / "yellow_tripdata_2025-07.parquet",
+    "green": BASE_DIR / "green_tripdata_2025-07.parquet",
+    "fhvhv": BASE_DIR / "fhvhv_tripdata_2025-07.parquet",
+}
+
+for service, path in files.items():
+    print(f"Reading {path} ...")
+    df = pd.read_parquet(path)
+    print(f"  rows: {len(df)}, columns: {len(df.columns)}")
+
+    n = min(1000, len(df))
+    sample = df.sample(n=n, random_state=42)
+
+    out_parquet = OUTPUT_DIR / f"{service}_sample_1k.parquet"
+    sample.to_parquet(out_parquet, index=False)
+
+    out_csv = OUTPUT_DIR / f"{service}_sample_1k.csv"
+    sample.to_csv(out_csv, index=False)
+
+    print(f"  saved {n} rows to {out_parquet} and {out_csv}")
+
