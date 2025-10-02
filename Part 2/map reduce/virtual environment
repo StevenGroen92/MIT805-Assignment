@@ -1,0 +1,16 @@
+# --- Java ---
+$Env:JAVA_HOME = 'C:\Program Files\Eclipse Adoptium\jdk-21.0.8.9-hotspot'
+$Env:Path      = "$Env:JAVA_HOME\bin;$Env:Path"
+
+# --- Hadoop / winutils ---
+$Env:HADOOP_HOME = 'C:\hadoop'
+$Env:Path        = "$Env:HADOOP_HOME\bin;$Env:Path"
+
+$base = "C:\Users\Steven Groenewald\Dropbox\PC\Desktop\UP\MIT805\Live Data\raw\nyc_taxi\mit805_profile"
+$py = Get-ChildItem -File (Join-Path "$base\.venv\Scripts" "python*.exe") -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($py) { $py = $py.FullName } else { $py = "python" }
+
+# Trips by zone & hour (full run)
+& $py -u (Join-Path $base "mr_trips_by_zone_hour.py") `
+  --root "C:\Users\Steven Groenewald\Dropbox\PC\Desktop\UP\MIT805\Live Data\raw\nyc_taxi" `
+  --out  (Join-Path $base "outputs\trips_by_zone_hour_csv")
