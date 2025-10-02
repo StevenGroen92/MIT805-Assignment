@@ -1,0 +1,112 @@
+import argparse
+from pathlib import Path
+from glob import glob
+from typing import Dict, List
+
+from pyspark.sql import SparkSession, functions as F
+
+START_DATE = "2021-01-01"
+END_DATE   = "2025-08-01"
+
+def discover_files(root: Path, pilot_fraction: float) -> Dict[str, List[str]]:
+    pats = {
+        "yellow": str(root / "yellow" / "*" / "*" / "yellow_tripdata_*.parquet"),
+        "green":  str(root / "green"  / "*" / "*" / "green_tripdata_*.parquet"),
+        "fhvhv":  str(root / "fhvhv"  / "*" / "*" / "fhvhv_tripdata_*.parquet"),
+    }
+    out = {}
+    for svc, pat in pats.items():
+        files = sorted(glob(pat))
+        if pilot_fraction and 0 < pilot_fraction < 1:
+            k = max(1, int(len(files) * pilot_fraction))
+            files = files[:k]
+        out[svc] = files
+    return out
+
+def read_norm(spark: SparkSession, paths: List[str], service: str):
+    if not paths:
+        return None
+    df = spark.read.parquet(*paths)
+
+    if service == "yellow":
+        df = df.select(
+            F.col("tpep_pickup_datetime").alias("pickup_datetime"),
+            F.col("PULocationID").cast("int").alias("PULocationID"),
+        )
+    elif service == "green":
+        df = df.select(
+            F.col("lpep_pickup_datetime").alias("pickup_datetime"),
+            F.col("PULocationID").cast("int").alias("PULocationID"),
+        )
+    else:  # fhvhv
+        df = df.select(
+            F.col("pickup_datetime").alias("pickup_datetime"),
+            F.col("PULocationID").cast("int").alias("PULocationID"),
+        )
+
+    df = (
+        df.withColumn("pickup_ts", F.col("pickup_datetime").cast("timestamp"))
+          .filter((F.col("pickup_ts") >= F.lit(START_DATE)) & (F.col("pickup_ts") < F.lit(END_DATE)))
+          .filter(F.col("PULocationID").isNotNull())
+          .withColumn("service", F.lit(service))
+          .select("service", "pickup_ts", "PULocationID")
+    )
+    return df
+
+def aggregate_counts(df):
+    return (
+        df.withColumn("hour", F.date_trunc("hour", F.col("pickup_ts")))
+          .groupBy("service", "PULocationID", "hour")
+          .agg(F.count(F.lit(1)).alias("trips"))
+    )
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", required=True, help="Root with yellow/ green/ fhvhv subfolders")
+    ap.add_argument("--out",  required=True, help="Output directory for CSV")
+    ap.add_argument("--pilot_fraction", type=float, default=0.0, help="Optional fraction (0<frac<1)")
+    args = ap.parse_args()
+
+    spark = (
+        SparkSession.builder
+        .appName("mr_trips_by_zone_hour")
+        .config("spark.sql.session.timeZone", "UTC")
+        # Windows/memory-friendly knobs:
+        .config("spark.sql.shuffle.partitions", "64")
+        .config("spark.sql.files.maxPartitionBytes", "64m")
+        .config("spark.sql.files.openCostInBytes", "8m")
+        .getOrCreate()
+    )
+
+    root = Path(args.root)
+    print("[discover] scanning files…")
+    files = discover_files(root, args.pilot_fraction)
+    for svc in ("yellow", "green", "fhvhv"):
+        print(f"[discover] {svc}: {len(files[svc])} files")
+
+    parts = []
+    for svc in ("yellow", "green", "fhvhv"):
+        sdf = read_norm(spark, files[svc], svc)
+        if sdf is not None:
+            _ = sdf.limit(1).count()  # early schema check
+            parts.append(sdf)
+
+    if not parts:
+        raise SystemExit("No data read. Check the --root path.")
+
+    unioned = parts[0]
+    for p in parts[1:]:
+        unioned = unioned.unionByName(p, allowMissingColumns=True)
+
+    out_df = aggregate_counts(unioned)
+
+    (out_df.coalesce(1)
+          .write.mode("overwrite")
+          .option("header", True)
+          .csv(args.out))
+
+    print("[done]", args.out)
+    spark.stop()
+
+if __name__ == "__main__":
+    main()
