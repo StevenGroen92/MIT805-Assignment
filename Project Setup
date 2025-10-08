@@ -1,43 +1,61 @@
 Project Setup
 
 Local Project Structure
-nyc_taxi/
-├─ yellow/              # TLC monthly parquet files by year/month
+NYC_TAXI/
+├─ .venv/                         # Python virtual environment
+├─ fhvhv/                         # Raw TLC Parquet by service (monthly subfolders)
 ├─ green/
-├─ fhvhv/
-└─ mit805_profile/
-   ├─ Data Samples.py
-   ├─ file_count_size.py
-   ├─ list_months.py
-   ├─ profile_tlc.py        
-   ├─ schema_merged.py      
-   └─ outputs/
-      ├─ file_count_size.csv
-      ├─ profile_per_service.csv
-      ├─ schemas_merged.cs    
-      ├─ profile_summary.csv        
-      └─ trips_per_month.csv        
+├─ yellow/
+├─ mit805_profile/
+│  ├─ .venv/                      # Python virtual environment
+│  ├─ outputs/
+│  │  ├─ file_count_size.csv
+│  │  ├─ profile_overall.csv
+│  │  ├─ profile_per_service.csv
+│  │  ├─ profile_summary.csv
+│  │  ├─ schemas_merged.csv
+│  │  ├─ taxi_zone_centroids.csv
+│  │  ├─ trips_by_zone_hour_enriched_dedup.csv   # main fact table used in BI
+│  │  └─ trips_per_month.csv
+│  ├─ taxi_zones/                 # TLC shapefile set (.shp, .shx, .dbf, .prj, etc.)
+│  ├─ Data Samples.py             # Utility: create 1k-row samples
+│  ├─ dedupe_hourly_fullschema.py # Keeps full columns when removing duplicates
+│  ├─ hotspots_hourly_from_parts.py# Top-N hotspots per hour from part CSVs
+│  ├─ list_months.py              # List months discovered in raw folders
+│  ├─ list_top_sizes.py           # Largest files (quick disk sanity)
+│  ├─ profile_tlc.py              # Lightweight data profiling
+│  ├─ schema_merged.py            # Merge service schemas
+│  ├─ spark_part1_all_data.py     # Part 1 helpers (counts, sizes, etc.)
+│  ├─ taxi_zone_lookup.csv        # TLC LocationID → Borough/Zone map
+│  ├─ trips_by_zone_hour.py       # MapReduce-style Spark job (hourly counts)
+│  └─ MIT805 Dashboard.pbix       # Power BI report (Part 2)
+  
 
 Github Structure
 MIT805-Assignment/
-├─ Outputs/
-  file_count_size.csv
-  profile_per_service.csv
-  profile_summary.csv
-  schemas_merged.csv
-  trips_per_month.csv
-  ├─ Data Samples
-    fhvhv_sample_1k.parquet
-    fhvhv_sample_1k.xls
-    green_sample_1k.parquet
-    green_sample_1k.xls
-    yellow_sample_1k.parquet
-    yellow_sample_1k.xls
-├─ code/
-  Data Profile
-  Data Sampling
-  File Count & Size
-  Schema Merged
+│
+├── Part 1/                            ← Data Profiling & Schema Analysis
+│   ├── code/
+│   │   ├── Data Profile.py            # Generates basic stats & column profiling
+│   │   ├── Data Sampling.py           # Extracts representative 1 000-row samples
+│   │   ├── File Count & Size.py       # Counts files and computes size per service
+│   │   └── Schema Merged.py           # Compares and merges service schemas
+│   │
+│   └── outputs/
+│       ├── data samples/
+│       │   ├── fhvhv_sample_1k.parquet / .xls
+│       │   ├── green_sample_1k.parquet / .xls
+│       │   └── yellow_sample_1k.parquet / .xls
+│       │
+│       ├── file_count_size.csv        # File volume per service
+│       ├── profile_per_service.csv    # Summary stats for each dataset
+│       ├── profile_summary.csv        # Consolidated profiling output
+│       ├── schemas_merged.csv         # Unified schema across all TLC services
+│       └── trips_per_month.csv        # Monthly trip distribution
+│
+├── Part 2/ map reduce/                ← Distributed Processing & Aggregation
+│   ├── trips_by_zone_hour.py          # MapReduce-style PySpark job
+│   ├── virtual environment/           # Local .venv folder for PySpark + GeoPandas
 
 Requirements
 Python 3.10+ (3.13)
